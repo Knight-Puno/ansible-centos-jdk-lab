@@ -1,0 +1,17 @@
+---
+jdk_package: /opt/download/jdk1.8.0_121.zip
+jdk_remote_package: /tmp/jdk1.8.0_121.zip
+jdk_install_dir: /usr/local/java
+jdk_home: /usr/local/java/jdk1.8.0_121
+
+centos_repo: /etc/yum.repos.d/CentOS-Base.repo
+centos_repo_backup: /etc/yum.repos.d/CentOS-Base.repo.backup
+centos_repo_url: https://mirrors.aliyun.com/repo/Centos-7.repo
+
+base_packages:
+  - wget
+  - lrzsz
+  - unzip
+  - gzip
+  - telnet
+  - vim

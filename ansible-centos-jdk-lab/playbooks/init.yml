@@ -1,0 +1,116 @@
+---
+- name: Initialize CentOS servers
+  hosts: jdk_servers
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - ../vars/common.yml
+
+  tasks:
+    - name: Check whether CentOS repo exists
+      ansible.builtin.stat:
+        path: "{{ centos_repo }}"
+      register: repo_file
+      tags: repo
+
+    - name: Check whether CentOS repo backup exists
+      ansible.builtin.stat:
+        path: "{{ centos_repo_backup }}"
+      register: repo_backup_file
+      tags: repo
+
+    - name: Backup original CentOS repo
+      ansible.builtin.copy:
+        src: "{{ centos_repo }}"
+        dest: "{{ centos_repo_backup }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: '0644'
+      when:
+        - repo_file.stat.exists
+        - not repo_backup_file.stat.exists
+      tags: repo
+
+    - name: Download Aliyun CentOS 7 repo
+      ansible.builtin.get_url:
+        url: "{{ centos_repo_url }}"
+        dest: "{{ centos_repo }}"
+        owner: root
+        group: root
+        mode: '0644'
+      tags: repo
+
+    - name: Install base packages
+      ansible.builtin.yum:
+        name: "{{ base_packages }}"
+        state: present
+      tags: packages
+
+    - name: Stop and disable firewalld
+      ansible.builtin.systemd:
+        name: firewalld
+        state: stopped
+        enabled: false
+      tags: service
+
+    - name: Stop and disable NetworkManager
+      ansible.builtin.systemd:
+        name: NetworkManager
+        state: stopped
+        enabled: false
+      tags: service
+
+    - name: Disable SELinux in configuration
+      ansible.builtin.replace:
+        path: /etc/selinux/config
+        regexp: '^SELINUX=.*'
+        replace: 'SELINUX=disabled'
+      tags: selinux
+
+    - name: Set SELinux permissive for current boot
+      ansible.builtin.command:
+        cmd: setenforce 0
+      register: setenforce_result
+      changed_when: false
+      failed_when: false
+      tags: selinux
+
+    - name: Configure common shell environment
+      ansible.builtin.blockinfile:
+        path: /etc/profile
+        marker: "# {mark} ANSIBLE COMMON ENV"
+        block: |
+          if [ "$(id -u)" == "0" ]; then
+              export PS1='[\[\e[31;1m\]\u\[\e[m\]@\h \w]# '
+          else
+              export PS1='[\[\e[34;1m\]\u\[\e[m\]@\h \w]$ '
+          fi
+          alias ll='ls -lh --color=auto'
+          alias grep='grep --color=auto'
+          alias free='free -m'
+          alias df='df -h'
+          alias du='du -h'
+          alias vi='vim'
+      tags: profile
+
+    - name: Configure root vim
+      ansible.builtin.blockinfile:
+        path: /root/.vimrc
+        create: true
+        marker: '" {mark} ANSIBLE VIM CONFIG'
+        block: |
+          syntax on
+          set number
+          set autoindent
+
+          autocmd BufNewFile *.sh exec ":call SetComment()"
+          func SetComment()
+          if expand("%:e")=='sh'
+          call setline(1,'#!/bin/bash')
+          call setline(2,'#Author: xxx')
+          call setline(3,'#Create time:'.strftime("%Y-%m-%d"))
+          endif
+          endfunc
+      tags: vim
